@@ -1,4 +1,5 @@
 # Reinforcement Learning Grid Map (HW1)
+https://elaine17141.github.io/HW1_GridWorld/
 
 ## 專案簡介
 本專案為一個互動式的強化學習 (Reinforcement Learning) 網格地圖模擬器。使用者可以自定義 $n \times n$ 的地圖大小，並透過直觀的 UI 介面設定起點、終點以及障礙物。系統會透過後端的 Policy Evaluation 演算法計算出每個狀態的價值 (State Value)，並視覺化顯示最佳路徑的方向。
