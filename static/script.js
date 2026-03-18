@@ -1,8 +1,3 @@
-// Calculate Backend URL
-const API_URL = window.location.hostname.includes('github.io') 
-    ? 'https://dic2-17141.onrender.com' 
-    : '';
-
 document.addEventListener('DOMContentLoaded', () => {
     const gridSizeInput = document.getElementById('grid-size');
     const generateBtn = document.getElementById('generate-btn');
@@ -80,7 +75,98 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function handleCalculate() {
+    // Local Value Iteration Algorithm (No backend required)
+    function valueIteration(n, start, end, walls, gamma = 0.9, threshold = 1e-4) {
+        let V = Array.from({ length: n }, () => Array(n).fill(0));
+        const actions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+        const [endR, endC] = end;
+        const wallSet = new Set(walls.map(w => `${w[0]},${w[1]}`));
+
+        V[endR][endC] = 10.0;
+
+        // 1. Calculate Value Matrix V(s)
+        while (true) {
+            let delta = 0;
+            let nextV = Array.from({ length: n }, () => Array(n).fill(0));
+
+            for (let r = 0; r < n; r++) {
+                for (let c = 0; c < n; c++) {
+                    if (r === endR && c === endC) {
+                        nextV[r][c] = 10.0;
+                        continue;
+                    }
+                    if (wallSet.has(`${r},${c}`)) {
+                        nextV[r][c] = 0;
+                        continue;
+                    }
+
+                    let max_v = -Infinity;
+                    for (const [dr, dc] of actions) {
+                        let nr = r + dr;
+                        let nc = c + dc;
+
+                        if (nr < 0 || nr >= n || nc < 0 || nc >= n || wallSet.has(`${nr},${nc}`)) {
+                            nr = r;
+                            nc = c;
+                        }
+
+                        let reward = (nr === endR && nc === endC) ? 10.0 : -1.0;
+                        let val = reward + gamma * V[nr][nc];
+                        if (val > max_v) {
+                            max_v = val;
+                        }
+                    }
+                    nextV[r][c] = max_v;
+                    delta = Math.max(delta, Math.abs(nextV[r][c] - V[r][c]));
+                }
+            }
+            V = nextV;
+            if (delta < threshold) break;
+        }
+
+        // 2. Derive Policy Matrix based on convergent V(s)
+        let policy = [];
+        const actionsExt = [[-1, 0, 'up'], [1, 0, 'down'], [0, -1, 'left'], [0, 1, 'right']];
+        for (let r = 0; r < n; r++) {
+            let rowPolicy = [];
+            for (let c = 0; c < n; c++) {
+                if (r === endR && c === endC) {
+                    rowPolicy.push([]);
+                } else if (wallSet.has(`${r},${c}`)) {
+                    rowPolicy.push([]);
+                } else {
+                    let max_v = -Infinity;
+                    let bestActs = [];
+                    for (const [dr, dc, a_name] of actionsExt) {
+                        let nr = r + dr;
+                        let nc = c + dc;
+
+                        if (nr < 0 || nr >= n || nc < 0 || nc >= n || wallSet.has(`${nr},${nc}`)) {
+                            nr = r;
+                            nc = c;
+                        }
+
+                        let reward = (nr === endR && nc === endC) ? 10.0 : -1.0;
+                        let val = reward + gamma * V[nr][nc];
+                        
+                        const epsilon = 1e-7;
+                        if (val > max_v + epsilon) {
+                            max_v = val;
+                            bestActs = [a_name];
+                        } else if (Math.abs(val - max_v) <= epsilon) {
+                            bestActs.push(a_name);
+                        }
+                    }
+                    rowPolicy.push(bestActs);
+                }
+            }
+            policy.push(rowPolicy);
+        }
+
+        return { values: V, policy: policy };
+    }
+
+    function handleCalculate() {
         if (!start || !end) {
             alert("Please set both Start and End points first.");
             return;
@@ -88,34 +174,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         updateStatus('計算中...');
 
-        try {
-            const response = await fetch(`${API_URL}/calculate`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    n: n,
-                    start: start,
-                    end: end,
-                    walls: walls
-                })
-            });
-
-            if (!response.ok) {
-                const errData = await response.json();
-                alert(errData.error || "Error calculating values.");
-                updateStatus('錯誤：計算失敗');
-                return;
-            }
-
-            const data = await response.json();
-            renderResults(data.values, data.policy);
-            updateStatus('計算完成！左邊為價值矩陣，右邊為最佳路徑');
-        } catch (error) {
-            console.error(error);
-            updateStatus('請求失敗或伺服器未運行');
-        }
+        // Domestic computation
+        const data = valueIteration(n, start, end, walls);
+        renderResults(data.values, data.policy);
+        updateStatus('計算完成！左邊為價值矩陣，右邊為最佳路徑');
     }
 
     function renderResults(values, policies) {
