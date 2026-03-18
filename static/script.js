@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const gridContainer = document.getElementById('grid-container');
     const valueMatrix = document.getElementById('value-matrix');
     const policyMatrix = document.getElementById('policy-matrix');
+    const pathMatrix = document.getElementById('path-matrix');
     const gridTitle = document.getElementById('grid-title');
 
     let start = null;
@@ -75,97 +76,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Local Value Iteration Algorithm (No backend required)
-    function valueIteration(n, start, end, walls, gamma = 0.9, threshold = 1e-4) {
-        let V = Array.from({ length: n }, () => Array(n).fill(0));
-        const actions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
-        const [endR, endC] = end;
-        const wallSet = new Set(walls.map(w => `${w[0]},${w[1]}`));
-
-        V[endR][endC] = 10.0;
-
-        // 1. Calculate Value Matrix V(s)
-        while (true) {
-            let delta = 0;
-            let nextV = Array.from({ length: n }, () => Array(n).fill(0));
-
-            for (let r = 0; r < n; r++) {
-                for (let c = 0; c < n; c++) {
-                    if (r === endR && c === endC) {
-                        nextV[r][c] = 10.0;
-                        continue;
-                    }
-                    if (wallSet.has(`${r},${c}`)) {
-                        nextV[r][c] = 0;
-                        continue;
-                    }
-
-                    let max_v = -Infinity;
-                    for (const [dr, dc] of actions) {
-                        let nr = r + dr;
-                        let nc = c + dc;
-
-                        if (nr < 0 || nr >= n || nc < 0 || nc >= n || wallSet.has(`${nr},${nc}`)) {
-                            nr = r;
-                            nc = c;
-                        }
-
-                        let reward = (nr === endR && nc === endC) ? 10.0 : -1.0;
-                        let val = reward + gamma * V[nr][nc];
-                        if (val > max_v) {
-                            max_v = val;
-                        }
-                    }
-                    nextV[r][c] = max_v;
-                    delta = Math.max(delta, Math.abs(nextV[r][c] - V[r][c]));
-                }
-            }
-            V = nextV;
-            if (delta < threshold) break;
-        }
-
-        // 2. Derive Policy Matrix based on convergent V(s)
-        let policy = [];
-        const actionsExt = [[-1, 0, 'up'], [1, 0, 'down'], [0, -1, 'left'], [0, 1, 'right']];
-        for (let r = 0; r < n; r++) {
-            let rowPolicy = [];
-            for (let c = 0; c < n; c++) {
-                if (r === endR && c === endC) {
-                    rowPolicy.push([]);
-                } else if (wallSet.has(`${r},${c}`)) {
-                    rowPolicy.push([]);
-                } else {
-                    let max_v = -Infinity;
-                    let bestActs = [];
-                    for (const [dr, dc, a_name] of actionsExt) {
-                        let nr = r + dr;
-                        let nc = c + dc;
-
-                        if (nr < 0 || nr >= n || nc < 0 || nc >= n || wallSet.has(`${nr},${nc}`)) {
-                            nr = r;
-                            nc = c;
-                        }
-
-                        let reward = (nr === endR && nc === endC) ? 10.0 : -1.0;
-                        let val = reward + gamma * V[nr][nc];
-                        
-                        const epsilon = 1e-7;
-                        if (val > max_v + epsilon) {
-                            max_v = val;
-                            bestActs = [a_name];
-                        } else if (Math.abs(val - max_v) <= epsilon) {
-                            bestActs.push(a_name);
-                        }
-                    }
-                    rowPolicy.push(bestActs);
-                }
-            }
-            policy.push(rowPolicy);
-        }
-
-        return { values: V, policy: policy };
-    }
-
     function handleCalculate() {
         if (!start || !end) {
             alert("Please set both Start and End points first.");
@@ -174,10 +84,65 @@ document.addEventListener('DOMContentLoaded', () => {
 
         updateStatus('計算中...');
 
-        // Domestic computation
-        const data = valueIteration(n, start, end, walls);
-        renderResults(data.values, data.policy);
-        updateStatus('計算完成！左邊為價值矩陣，右邊為最佳路徑');
+        // Send request to Flask backend
+        fetch('/calculate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                n: n,
+                start: start,
+                end: end,
+                walls: walls
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert("Error: " + data.error);
+                updateStatus('計算失敗');
+                return;
+            }
+            renderResults(data.values, data.policy);
+            updateStatus('計算完成！');
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to calculate. Please make sure the Flask backend is running.');
+            updateStatus('計算失敗');
+        });
+    }
+
+    function computeOptimalPath(policies) {
+        let pathCells = new Set();
+        if (!start || !end) return pathCells;
+        let currR = start[0];
+        let currC = start[1];
+        let visited = new Set();
+        
+        while (true) {
+            let key = `${currR},${currC}`;
+            if (currR === end[0] && currC === end[1]) {
+                pathCells.add(key);
+                break;
+            }
+            if (visited.has(key)) {
+                break; // cycle detected
+            }
+            visited.add(key);
+            pathCells.add(key);
+            
+            let bestActs = policies[currR][currC];
+            if (!bestActs || bestActs.length === 0) break; 
+            
+            let act = bestActs[0];
+            if (act === 'up') currR -= 1;
+            else if (act === 'down') currR += 1;
+            else if (act === 'left') currC -= 1;
+            else if (act === 'right') currC += 1;
+        }
+        return pathCells;
     }
 
     function renderResults(values, policies) {
@@ -186,9 +151,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         renderMatrix(valueMatrix, values, 'value');
         renderMatrix(policyMatrix, policies, 'policy');
+        
+        const path = computeOptimalPath(policies);
+        renderMatrix(pathMatrix, policies, 'path', path);
     }
 
-    function renderMatrix(container, data, type) {
+    function renderMatrix(container, data, type, path = null) {
         container.innerHTML = '';
         container.style.gridTemplateColumns = `30px repeat(${n}, 50px)`;
         container.style.gridTemplateRows = `repeat(${n}, 50px) 30px`;
@@ -207,17 +175,18 @@ document.addEventListener('DOMContentLoaded', () => {
             for (let c = 0; c < n; c++) {
                 const cell = document.createElement('div');
                 cell.className = 'cell';
+                cell.style.position = 'relative';
 
                 if (wallSet.has(`${r},${c}`)) {
                     cell.classList.add('wall');
-                } else if (r === end[0] && c === end[1]) {
-                    if (type === 'value') cell.textContent = '10.00';
-                    else cell.textContent = '★';
+                } else if (r === end[0] && c === end[1] && type === 'policy') {
+                    cell.textContent = '★';
                 } else {
                     if (type === 'value') {
                         cell.textContent = data[r][c].toFixed(2);
                     } else {
-                        const bestDirs = data[r][c];
+                        const isEndCell = (r === end[0] && c === end[1]);
+                        const bestDirs = isEndCell ? [] : data[r][c];
                         const arrowsContainer = document.createElement('div');
                         arrowsContainer.className = 'policy-arrows';
                         
@@ -226,8 +195,67 @@ document.addEventListener('DOMContentLoaded', () => {
                             arrowDiv.className = `arrow ${d}`;
                             const dirMap = {'up': '↑', 'down': '↓', 'left': '←', 'right': '→'};
                             arrowDiv.textContent = dirMap[d];
+                            // Apply generic styling for path if it's the right context
                             arrowsContainer.appendChild(arrowDiv);
                         });
+
+                        if (type === 'path') {
+                            const isPathCell = path && path.has(`${r},${c}`);
+                            if (isPathCell) {
+                                cell.style.backgroundColor = '#79d279';
+                                cell.style.color = '#000';
+                                cell.style.zIndex = '2'; // keep path borders above
+                                
+                                const arrowsHTML = Array.from(arrowsContainer.children).map(child => {
+                                    child.style.color = 'black';
+                                    child.style.fontWeight = 'bold';
+                                    return child;
+                                });
+                                
+                                let topThick = !path.has(`${r-1},${c}`);
+                                let bottomThick = !path.has(`${r+1},${c}`);
+                                let leftThick = !path.has(`${r},${c-1}`);
+                                let rightThick = !path.has(`${r},${c+1}`);
+                                
+                                const bw = '3px';
+                                if (topThick) cell.style.borderTop = `${bw} solid black`;
+                                if (bottomThick) cell.style.borderBottom = `${bw} solid black`;
+                                if (leftThick) cell.style.borderLeft = `${bw} solid black`;
+                                if (rightThick) cell.style.borderRight = `${bw} solid black`;
+                                
+                                if (r === start[0] && c === start[1]) {
+                                    const span = document.createElement('span');
+                                    span.textContent = 'START';
+                                    span.style.position = 'absolute';
+                                    span.style.top = '2px';
+                                    span.style.left = '2px';
+                                    span.style.fontSize = '9px';
+                                    span.style.fontWeight = 'bold';
+                                    cell.appendChild(span);
+                                }
+                                if (isEndCell) {
+                                    const span = document.createElement('span');
+                                    span.textContent = 'END';
+                                    span.style.position = 'absolute';
+                                    span.style.bottom = '2px';
+                                    span.style.right = '2px';
+                                    span.style.fontSize = '9px';
+                                    span.style.fontWeight = 'bold';
+                                    cell.appendChild(span);
+                                    
+                                    // Make sure it has END text but NO arrow for End Cell in path
+                                    // wait, the image shows END at bottom left and an arrow? No it shows END.
+                                    // Is there an arrow in END cell? End cell is terminal so it has no action.
+                                }
+                            } else {
+                                arrowsContainer.style.color = '#777';
+                                Array.from(arrowsContainer.children).forEach(child => {
+                                    child.style.color = '#777'; 
+                                    child.style.fontWeight = 'normal';
+                                });
+                            }
+                        }
+
                         cell.appendChild(arrowsContainer);
                     }
                 }

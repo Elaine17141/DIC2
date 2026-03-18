@@ -20,7 +20,7 @@ def value_iteration(n, start, end, walls, gamma=0.9, threshold=1e-4):
     wall_set = set(tuple(w) for w in walls)
     
     # Initialize End state value
-    V[end_r, end_c] = 10.0
+    V[end_r, end_c] = 5.0
     
     while True:
         delta = 0
@@ -28,9 +28,9 @@ def value_iteration(n, start, end, walls, gamma=0.9, threshold=1e-4):
         
         for r in range(n):
             for c in range(n):
-                # End state is fixed at 10.0
+                # End state is fixed at 5.0
                 if r == end_r and c == end_c:
-                    new_V[r, c] = 10.0
+                    new_V[r, c] = 5.0
                     continue
                 
                 # Walls skip calculation (Value 0 or keep as is)
@@ -48,7 +48,7 @@ def value_iteration(n, start, end, walls, gamma=0.9, threshold=1e-4):
                     
                     # Reward logic:
                     if nr == end_r and nc == end_c:
-                        reward = 10.0
+                        reward = 5.0
                     else:
                         reward = -1.0
                     
@@ -82,7 +82,7 @@ def value_iteration(n, start, end, walls, gamma=0.9, threshold=1e-4):
                         nr, nc = r, c
                         
                     if nr == end_r and nc == end_c:
-                        reward = 10.0
+                        reward = 5.0
                     else:
                         reward = -1.0
                         
