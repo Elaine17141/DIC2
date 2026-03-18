@@ -1,7 +1,9 @@
 from flask import Flask, render_template, request, jsonify
+from flask_cors import CORS
 import numpy as np
 
 app = Flask(__name__)
+CORS(app)
 
 def value_iteration(n, start, end, walls, gamma=0.9, threshold=1e-4):
     """

@@ -1,3 +1,8 @@
+// Calculate Backend URL
+const API_URL = window.location.hostname.includes('github.io') 
+    ? 'https://dic2-17141.onrender.com' 
+    : '';
+
 document.addEventListener('DOMContentLoaded', () => {
     const gridSizeInput = document.getElementById('grid-size');
     const generateBtn = document.getElementById('generate-btn');
@@ -84,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateStatus('計算中...');
 
         try {
-            const response = await fetch('/calculate', {
+            const response = await fetch(`${API_URL}/calculate`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
