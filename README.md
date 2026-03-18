@@ -1,4 +1,4 @@
-# 🤖 Reinforcement Learning Grid Map (HW2)
+# 🤖 Reinforcement Learning Grid Map (DIC2)
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
 [![Flask](https://img.shields.io/badge/Framework-Flask-lightgrey.svg)](https://flask.palletsprojects.com/)
@@ -103,4 +103,4 @@ python app.py
 4. **查看結果**：系統會以動畫切換至結果分頁。右側清晰顯示出 **最佳指引箭頭 (Policy)**，左側為 **對應的最大價值 (Value)**。若有多條等價的最佳路徑，格子中將同時並列顯示多個方向箭頭。
 
 ---
-> *Developed for Deep Reinforcement Learning Course (HW1)*
+> *Developed for Deep Reinforcement Learning Course (DIC2)*
