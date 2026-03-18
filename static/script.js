@@ -75,103 +75,53 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Ported from Python app.py
-    function policyEvaluation(n, start, end, walls, gamma = 0.9, threshold = 1e-4) {
-        let V = Array.from({ length: n }, () => Array(n).fill(0));
-        const actions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
-        const [endR, endC] = end;
-        const wallSet = new Set(walls.map(w => `${w[0]},${w[1]}`));
-
-        V[endR][endC] = 10.0;
-
-        while (true) {
-            let delta = 0;
-            let nextV = Array.from({ length: n }, () => Array(n).fill(0));
-
-            for (let r = 0; r < n; r++) {
-                for (let c = 0; c < n; c++) {
-                    if (r === endR && c === endC) {
-                        nextV[r][c] = 10.0;
-                        continue;
-                    }
-                    if (wallSet.has(`${r},${c}`)) {
-                        nextV[r][c] = 0;
-                        continue;
-                    }
-
-                    let v = 0;
-                    for (const [dr, dc] of actions) {
-                        let nr = r + dr;
-                        let nc = c + dc;
-
-                        if (nr < 0 || nr >= n || nc < 0 || nc >= n || wallSet.has(`${nr},${nc}`)) {
-                            nr = r;
-                            nc = c;
-                        }
-
-                        let reward = (nr === endR && nc === endC) ? 10.0 : -1.0;
-                        v += 0.25 * (reward + gamma * V[nr][nc]);
-                    }
-                    nextV[r][c] = v;
-                    delta = Math.max(delta, Math.abs(nextV[r][c] - V[r][c]));
-                }
-            }
-            V = nextV;
-            if (delta < threshold) break;
-        }
-        return V;
-    }
-
     async function handleCalculate() {
         if (!start || !end) {
             alert("Please set both Start and End points first.");
             return;
         }
 
-        // Domestic computation for static demo
-        const values = policyEvaluation(n, start, end, walls);
-        renderResults(values);
-        updateStatus('計算完成！左邊為價值矩陣，右邊為最佳路徑');
+        updateStatus('計算中...');
+
+        try {
+            const response = await fetch('/calculate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    n: n,
+                    start: start,
+                    end: end,
+                    walls: walls
+                })
+            });
+
+            if (!response.ok) {
+                const errData = await response.json();
+                alert(errData.error || "Error calculating values.");
+                updateStatus('錯誤：計算失敗');
+                return;
+            }
+
+            const data = await response.json();
+            renderResults(data.values, data.policy);
+            updateStatus('計算完成！左邊為價值矩陣，右邊為最佳路徑');
+        } catch (error) {
+            console.error(error);
+            updateStatus('請求失敗或伺服器未運行');
+        }
     }
 
-    function renderResults(values) {
+    function renderResults(values, policies) {
         setupSection.classList.add('hidden');
         resultSection.classList.remove('hidden');
 
         renderMatrix(valueMatrix, values, 'value');
-        renderMatrix(policyMatrix, values, 'policy');
+        renderMatrix(policyMatrix, policies, 'policy');
     }
 
-    function getBestDirections(r, c, values, n, wallSet) {
-        const neighbors = [
-            { dir: '↑', cls: 'up', r: r - 1, c: c },
-            { dir: '↓', cls: 'down', r: r + 1, c: c },
-            { dir: '←', cls: 'left', r: r, c: c - 1 },
-            { dir: '→', cls: 'right', r: r, c: c + 1 }
-        ];
-
-        let maxVal = -Infinity;
-        let bestDirs = [];
-
-        neighbors.forEach(nb => {
-            let nr = nb.r, nc = nb.c;
-            if (nr < 0 || nr >= n || nc < 0 || nc >= n || wallSet.has(`${nr},${nc}`)) {
-                nr = r;
-                nc = c;
-            }
-            const val = values[nr][nc];
-            const epsilon = 1e-7;
-            if (val > maxVal + epsilon) {
-                maxVal = val;
-                bestDirs = [nb];
-            } else if (Math.abs(val - maxVal) < epsilon) {
-                bestDirs.push(nb);
-            }
-        });
-        return bestDirs;
-    }
-
-    function renderMatrix(container, values, type) {
+    function renderMatrix(container, data, type) {
         container.innerHTML = '';
         container.style.gridTemplateColumns = `30px repeat(${n}, 50px)`;
         container.style.gridTemplateRows = `repeat(${n}, 50px) 30px`;
@@ -195,18 +145,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     cell.classList.add('wall');
                 } else if (r === end[0] && c === end[1]) {
                     if (type === 'value') cell.textContent = '10.00';
+                    else cell.textContent = '★';
                 } else {
                     if (type === 'value') {
-                        cell.textContent = values[r][c].toFixed(2);
+                        cell.textContent = data[r][c].toFixed(2);
                     } else {
-                        const bestDirs = getBestDirections(r, c, values, n, wallSet);
+                        const bestDirs = data[r][c];
                         const arrowsContainer = document.createElement('div');
                         arrowsContainer.className = 'policy-arrows';
                         
                         bestDirs.forEach(d => {
                             const arrowDiv = document.createElement('div');
-                            arrowDiv.className = `arrow ${d.cls}`;
-                            arrowDiv.textContent = d.dir;
+                            arrowDiv.className = `arrow ${d}`;
+                            const dirMap = {'up': '↑', 'down': '↓', 'left': '←', 'right': '→'};
+                            arrowDiv.textContent = dirMap[d];
                             arrowsContainer.appendChild(arrowDiv);
                         });
                         cell.appendChild(arrowsContainer);

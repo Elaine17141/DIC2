@@ -3,10 +3,9 @@ import numpy as np
 
 app = Flask(__name__)
 
-def policy_evaluation(n, start, end, walls, gamma=0.9, threshold=1e-4):
+def value_iteration(n, start, end, walls, gamma=0.9, threshold=1e-4):
     """
-    Perform iterative policy evaluation on an n x n grid.
-    - Uniform random policy (0.25 for UP, DOWN, LEFT, RIGHT).
+    Perform iterative value iteration on an n x n grid.
     - Living reward = -1.
     - Moving into End state reward = +10.
     - End state value fixed at 10.0.
@@ -37,7 +36,7 @@ def policy_evaluation(n, start, end, walls, gamma=0.9, threshold=1e-4):
                     new_V[r, c] = 0
                     continue
                 
-                v = 0
+                max_v = -float('inf')
                 for dr, dc in actions:
                     nr, nc = r + dr, c + dc
                     
@@ -46,23 +45,55 @@ def policy_evaluation(n, start, end, walls, gamma=0.9, threshold=1e-4):
                         nr, nc = r, c
                     
                     # Reward logic:
-                    # If the NEXT state is the end state, reward is +10.
-                    # Otherwise, reward is -1 (living reward).
                     if nr == end_r and nc == end_c:
                         reward = 10.0
                     else:
                         reward = -1.0
                     
-                    v += 0.25 * (reward + gamma * V[nr, nc])
+                    val = reward + gamma * V[nr, nc]
+                    if val > max_v:
+                        max_v = val
                 
-                new_V[r, c] = v
-                delta = max(delta, abs(v - V[r, c]))
+                new_V[r, c] = max_v
+                delta = max(delta, abs(max_v - V[r, c]))
         
         V = new_V
         if delta < threshold:
             break
             
-    return V.tolist()
+    # Compute optimal policy based on final V
+    policy = []
+    actions_ext = [(-1, 0, 'up'), (1, 0, 'down'), (0, -1, 'left'), (0, 1, 'right')]
+    for r in range(n):
+        row_policy = []
+        for c in range(n):
+            if r == end_r and c == end_c:
+                row_policy.append([])
+            elif (r, c) in wall_set:
+                row_policy.append([])
+            else:
+                max_v = -float('inf')
+                best_acts = []
+                for dr, dc, a_name in actions_ext:
+                    nr, nc = r + dr, c + dc
+                    if nr < 0 or nr >= n or nc < 0 or nc >= n or (nr, nc) in wall_set:
+                        nr, nc = r, c
+                        
+                    if nr == end_r and nc == end_c:
+                        reward = 10.0
+                    else:
+                        reward = -1.0
+                        
+                    val = reward + gamma * V[nr, nc]
+                    if val > max_v + 1e-7:
+                        max_v = val
+                        best_acts = [a_name]
+                    elif abs(val - max_v) <= 1e-7:
+                        best_acts.append(a_name)
+                row_policy.append(best_acts)
+        policy.append(row_policy)
+            
+    return V.tolist(), policy
 
 @app.route('/')
 def index():
@@ -79,8 +110,8 @@ def calculate():
     if not start or not end:
         return jsonify({"error": "Start and End positions are required"}), 400
     
-    values = policy_evaluation(n, start, end, walls)
-    return jsonify({"values": values})
+    values, policy = value_iteration(n, start, end, walls)
+    return jsonify({"values": values, "policy": policy})
 
 if __name__ == '__main__':
     app.run(debug=True)
