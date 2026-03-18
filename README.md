@@ -1,4 +1,4 @@
-# 🤖 Reinforcement Learning Grid Map (HW1)
+# 🤖 Reinforcement Learning Grid Map (HW2)
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
 [![Flask](https://img.shields.io/badge/Framework-Flask-lightgrey.svg)](https://flask.palletsprojects.com/)
