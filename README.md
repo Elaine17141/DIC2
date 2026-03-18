@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
 > [!TIP]
-> **🚀 Live Demo**: [https://elaine17141.github.io/HW1_GridWorld/](https://elaine17141.github.io/HW1_GridWorld/)
+> **🚀 Live Demo**: [https://elaine17141.github.io/DIC2/](https://elaine17141.github.io/DIC2/)
 
 本專案是一個基於 **強化學習 (Reinforcement Learning)** 理論開發的互動式網格地圖模擬器。使用者可自定義 $n \times n$ 的地圖配置，並交由後端伺服器運用 **價值迭代 (Value Iteration)** 演算法，即時推算並視覺化各狀態的「最大期望價值矩陣」以及達到目標的「最佳動作策略」。
 
